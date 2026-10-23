@@ -163,9 +163,13 @@ static int mpin_user_pin_page(struct mpin_user_container *priv, struct mpin_user
 	p->nr_pages = nr_pages;
 	p->pages = pages;
 
-	ret = xa_err(xa_store(&priv->array, p->first, p, GFP_KERNEL));
-	if (ret != 0)
+	/* xa_store would replace, and leak, an existing pin at the same start */
+	ret = xa_insert(&priv->array, p->first, p, GFP_KERNEL);
+	if (ret != 0) {
+		pr_err("mpin_user: %s: called-by(%s:%d) addr=0x%llx already pinned or no memory => %d\n",
+			__func__, current->comm, current->pid, addr->addr, ret);
 		goto unpin_pages;
+	}
 	return 0;
 
 unpin_pages:
@@ -212,9 +216,19 @@ static int mpin_open(struct inode *inode, struct file *file)
 #ifdef ENABLE_MPIN
 	struct mpin_user_container *p;
 
+	/*
+	 * procfs takes no module reference on open, and removing the proc entry
+	 * calls mpin_release on every open file, silently unpinning live memory.
+	 * Hold a reference so unload is refused while any pinner is open.
+	 */
+	if (!try_module_get(THIS_MODULE))
+		return -ENODEV;
+
 	p = kzalloc(sizeof(*p), GFP_KERNEL);
-	if (p == NULL)
+	if (p == NULL) {
+		module_put(THIS_MODULE);
 		return -ENOMEM;
+	}
 
 	file->private_data = p;
 	xa_init(&p->array);
@@ -241,6 +255,7 @@ static int mpin_release(struct inode *inode, struct file *file)
 
 	xa_destroy(&priv->array);
 	kfree(priv);
+	module_put(THIS_MODULE);
 #endif /* ENABLE_MPIN */
 
 	return 0;
