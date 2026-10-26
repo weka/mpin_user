@@ -173,6 +173,12 @@ static int mpin_user_pin_page(struct mpin_user_container *priv, struct mpin_user
 	if (ret != 0) {
 		pr_err("mpin_user: %s: called-by(%s:%d) addr=0x%llx already pinned or no memory => %d\n",
 			__func__, current->comm, current->pid, addr->addr, ret);
+		/*
+		 * xa_insert reports an occupied index as -EBUSY (-EEXIST before 5.1), and a
+		 * failed pin_user_pages can return either. -EALREADY is unique to this case.
+		 */
+		if (ret == -EBUSY || ret == -EEXIST)
+			ret = -EALREADY;
 		goto unpin_pages;
 	}
 	return 0;
