@@ -7,36 +7,37 @@
 
 _extract_dir_names()
 {
-	for p in $(echo "$@" ) ; do
+	local p
+
+	for p in "$@"; do
 		if [[ $p == \-I*  ]]; then
-			echo ${p#*-I};
-		fi ;
+			printf '%s\n' "${p#-I}"
+		fi
 	done
 }
 
 find_linux_headers()
 {
-	linux_includes="$@"
-	ret_code=17 # error code not found
+	local f bn
 
-	for f in $( _extract_dir_names $linux_includes ); do
-		bn="$(basename $f)" ;
-		if [ -e $f/linux/fs.h ] && [ $bn != "uapi" ] && [ $bn != "drm-backport" ]; then
-			echo $f;
-			ret_code=0; #good
-		fi ;
-	done
+	while IFS= read -r f; do
+		bn="$(basename "$f")"
+		if [ -e "$f/linux/fs.h" ] && [ "$bn" != "uapi" ] && [ "$bn" != "drm-backport" ]; then
+			printf '%s\n' "$f"
+			return 0
+		fi
+	done < <(_extract_dir_names "$@")
 
-	return "$ret_code";
+	return 17
 }
 
 __LINUXINCLUDE="$@"
 
-LINUX_HEADERS_PREFIX="$(find_linux_headers $__LINUXINCLUDE)"
-if [ -z $LINUX_HEADERS_PREFIX ]; then
+LINUX_HEADERS_PREFIX="$(find_linux_headers "$@")"
+if [ -z "$LINUX_HEADERS_PREFIX" ]; then
 	echo "makehelp failed [$__LINUXINCLUDE]"
 	exit 17
 fi
 
-echo $LINUX_HEADERS_PREFIX
+printf '%s\n' "$LINUX_HEADERS_PREFIX"
 exit 0

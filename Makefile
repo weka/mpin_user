@@ -67,5 +67,10 @@ clean:
 	make -C $(KERNEL_PATH) M=$(PWD) clean
 	rm -f mpin_user-test
 
-test:
+test: test-makehelp
 	gcc -Wall -O2 -D_GNU_SOURCE  -o mpin_user-test mpin_user-test.c
+
+test-makehelp:
+	./test-makehelp.sh
+
+.PHONY: all install clean test test-makehelp
